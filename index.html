@@ -167,6 +167,7 @@ function fresh(){
 }
 function migrate(){
   if (!S.partners || !S.partners.length) S.partners = [{id:1, name:"Ben", amt:25, on:true}, {id:2, name:"Arkadaş 1", amt:25, on:true}, {id:3, name:"Arkadaş 2", amt:25, on:true}];
+  if (S.lock && !(S.lock.salt && S.lock.hash)) delete S.lock;
   S.cycles.forEach(c => {
     if (!c.splits) c.splits = {};
     c.paths.forEach(p => {
@@ -186,6 +187,51 @@ migrate();
 let undo = [], tab = "aktif", toastTimer = null, winPath = null, cashPath = null;
 
 const cur = () => S.cycles[S.cycles.length - 1];
+
+/* duzenleme kilidi: sifre yoksa eskisi gibi acik; sifre varsa 5 dk islemsizlikte kilitlenir */
+const LOCK_MS = 5 * 60 * 1000;
+let editUntil = 0;
+const hasLock = () => !!(S.lock && S.lock.salt && S.lock.hash);
+const canEdit = () => !hasLock() || Date.now() < editUntil;
+let wasEd = true;
+const touchEdit = () => { if (hasLock() && Date.now() < editUntil) editUntil = Date.now() + LOCK_MS; };
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+async function hashPw(pw, salt){
+  if (!(window.crypto && crypto.subtle)) throw new Error("nocrypto");
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveBits"]);
+  return b64(await crypto.subtle.deriveBits({name: "PBKDF2", salt: enc.encode(salt), iterations: 100000, hash: "SHA-256"}, key, 256));
+}
+function openUnlock(){
+  showSheet('<h2>Düzenleme şifresi</h2><div class="mute small">Sonuçları girmek ve değiştirmek için şifreyi gir.</div>' +
+    '<label for="upw">Şifre</label><input id="upw" type="password" autocomplete="current-password">' +
+    '<div class="prev" id="up" style="display:none"></div>' +
+    '<div class="two" style="margin-top:12px"><button class="btn ghost" data-a="close">Vazgeç</button><button class="btn" data-a="doun">Aç</button></div>');
+  const i = document.getElementById("upw");
+  i.addEventListener("keydown", e => { if (e.key === "Enter") doUnlock(); });
+  setTimeout(() => i.focus(), 50);
+}
+function upMsg(t){ const el = document.getElementById("up"); el.style.display = "block"; el.textContent = t; }
+async function doUnlock(){
+  const i = document.getElementById("upw"); if (!i || !hasLock()) return;
+  try {
+    const h = await hashPw(i.value, S.lock.salt);
+    if (h !== S.lock.hash) { upMsg("Şifre yanlış."); i.select(); return; }
+  } catch(e) { upMsg("Bu tarayıcıda şifre doğrulanamadı. Siteyi https adresinden aç."); return; }
+  editUntil = Date.now() + LOCK_MS; closeSheet(); render(); toast("Düzenleme açıldı. 5 dk işlem yapılmazsa kilitlenir.");
+}
+function lockNow(){ editUntil = 0; closeSheet(); render(); toast("Kilitlendi. Yalnızca sonuçlar görünür."); }
+async function setPassword(){
+  const v = document.getElementById("npw").value;
+  if (v.length < 4) { setSp("Şifre en az 4 karakter olmalı."); return; }
+  try {
+    const salt = b64(crypto.getRandomValues(new Uint8Array(16)));
+    const hash = await hashPw(v, salt);
+    S.lock = {salt, hash}; undo = []; editUntil = Date.now() + LOCK_MS; save(); render(); openSettings(); setSp("Şifre ayarlandı. Diğer ortakların telefonlarında da geçerli olur.");
+  } catch(e) { setSp("Bu tarayıcıda şifre ayarlanamadı. Siteyi https adresinden aç."); }
+}
+function removePassword(){ delete S.lock; undo = []; save(); render(); openSettings(); setSp("Şifre kaldırıldı. Düzenleme herkese açık."); }
+const EDITS = new Set(["open","openbox","split","splitok","dellast","delpath","confirmdel","win","lose","cash","cashall","savecash","savewin","undo","settings","savesettings","addpartner","import","cyclebox","newcycle","cnew","cjoin","cleave","setpw","rmpw"]);
 const activePartners = () => S.partners.filter(x => x.on);
 const dailyStake = () => r2(activePartners().reduce((a, x) => a + x.amt, 0));
 
@@ -350,9 +396,18 @@ function openSettings(){
     '<div><label for="s4">Hedefte oyunda kalan (₺)</label><input id="s4" type="text" inputmode="decimal" value="' + r.keep + '"></div></div>' +
     '<button class="btn" style="width:100%;margin-top:12px" data-a="savesettings">Ayarları kaydet</button>' +
     '<div class="prev" id="sp" style="display:none"></div>' +
-    cloudBlock() + '<label for="bk">Yedek / telefondan telefona aktarım</label><textarea id="bk" rows="4">' + esc(JSON.stringify(S)) + '</textarea>' +
+    lockBlock() + cloudBlock() + '<label for="bk">Yedek / telefondan telefona aktarım</label><textarea id="bk" rows="4">' + esc(JSON.stringify(S)) + '</textarea>' +
     '<div class="two" style="margin-top:8px"><button class="btn ghost" data-a="copy">Kopyala</button><button class="btn ghost" data-a="import">Metinden yükle</button></div>' +
     '<button class="btn ghost" style="width:100%;margin-top:12px" data-a="close">Kapat</button>');
+}
+function lockBlock(){
+  if (hasLock()) return '<label>Düzenleme şifresi</label><div class="mute small">Açık. Kilitliyken yalnızca sonuçlar görünür.</div>' +
+    '<input id="npw" type="password" autocomplete="new-password" placeholder="yeni şifre" style="margin-top:8px">' +
+    '<div class="two" style="margin-top:8px"><button class="btn ghost" data-a="setpw">Şifreyi değiştir</button><button class="btn ghost" data-a="rmpw">Şifreyi kaldır</button></div>' +
+    '<button class="btn" style="width:100%;margin-top:8px" data-a="lockn">Şimdi kilitle</button>';
+  return '<label>Düzenleme şifresi</label><div class="mute small">Belirlersen sonuçlar herkese salt okunur görünür, düzenlemek için şifre gerekir.</div>' +
+    '<input id="npw" type="password" autocomplete="new-password" placeholder="yeni şifre (en az 4 karakter)" style="margin-top:8px">' +
+    '<button class="btn ghost" style="width:100%;margin-top:8px" data-a="setpw">Şifre belirle</button>';
 }
 function readPartners(){
   return S.partners.map((x, i) => ({id: x.id, name: document.getElementById("pn" + i).value.trim(), amt: r2(num(document.getElementById("pa" + i).value)), on: document.getElementById("po" + i).checked}));
@@ -386,7 +441,7 @@ function doImport(){
   try {
     const d = JSON.parse(document.getElementById("bk").value);
     if (!d.cycles || !d.cycles.length || !d.rules) throw 0;
-    undo.push(JSON.stringify(S)); S = d; migrate(); save(); closeSheet(); render(); toast("Veri yüklendi.", true);
+    undo.push(JSON.stringify(S)); if (!d.lock && S.lock) d.lock = S.lock; S = d; migrate(); save(); closeSheet(); render(); toast("Veri yüklendi.", true);
   } catch(e) { setSp("Metin okunamadı. Yedek metnini eksiksiz yapıştır."); }
 }
 function doCopy(){
@@ -450,9 +505,9 @@ function logHtml(p){
     if (e.type === "win") return '<div><span>' + fmtD(e.t) + ' · Kazandı</span><span>' + money(e.from) + ' → ' + money(e.to) + '</span></div>';
     return '<div><span>' + fmtD(e.t) + ' · Çekim</span><span>' + money(e.amount) + '</span></div>';
   }).join("");
-  const fix = (p.log.length ? '<button class="lnk" data-a="dellast" data-id="' + p.id + '">Son işlemi sil</button>' : '') +
+  const fix = !canEdit() ? "" : (p.log.length ? '<button class="lnk" data-a="dellast" data-id="' + p.id + '">Son işlemi sil</button>' : '') +
     '<button class="lnk bad" data-a="delpath" data-id="' + p.id + '">Yolu sil</button>';
-  return '<details><summary>Geçmiş ve düzeltme' + (p.log.length ? ' (' + p.log.length + ')' : '') + '</summary><div class="log">' + rows + '</div><div class="fix">' + fix + '</div></details>';
+  return '<details><summary>' + (canEdit() ? 'Geçmiş ve düzeltme' : 'Geçmiş') + '' + (p.log.length ? ' (' + p.log.length + ')' : '') + '</summary><div class="log">' + rows + '</div>' + (fix ? '<div class="fix">' + fix + '</div>' : '') + '</details>';
 }
 function delLast(id){
   const p = cur().paths.find(x => x.id === id); if (!p || !p.log.length) return;
@@ -552,26 +607,27 @@ function card(p, c){
     '<div class="road"><i style="left:' + pos + '%"></i></div>' +
     '<div class="row small mute"><span>' + (active ? "Hedefe " + money(left) + " kaldı" : "Hedef " + money(c.rules.target)) + '</span><span>%' + Math.round(pct) + '</span></div>' +
     '<div class="chips"><span class="chip">Yatırılan <b>' + money(p.stake) + '</b></span><span class="chip">Çekilen <b>' + money(p.withdrawn) + '</b></span></div>' +
-    (active ? '<div class="btns"><button class="btn win" data-a="win" data-id="' + p.id + '">Kazandı</button><button class="btn lose" data-a="lose" data-id="' + p.id + '">Kaybetti</button><button class="btn cash" data-a="cash" data-id="' + p.id + '">Çek</button></div>' : "") +
+    (active && canEdit() ? '<div class="btns"><button class="btn win" data-a="win" data-id="' + p.id + '">Kazandı</button><button class="btn lose" data-a="lose" data-id="' + p.id + '">Kaybetti</button><button class="btn cash" data-a="cash" data-id="' + p.id + '">Çek</button></div>' : "") +
     logHtml(p) + '</div>';
 }
 function navBtn(t, label, icon, count){
   return '<button data-a="tab" data-t="' + t + '" class="' + (tab === t ? "on" : "") + '">' + icon + '<span>' + label + (count != null ? " " + count : "") + '</span></button>';
 }
 function render(){
-  const c = cur(), st = stats([c]), full = c.paths.length >= c.length;
+  const c = cur(), st = stats([c]), full = c.paths.length >= c.length, ed = canEdit();
+  wasEd = ed;
   const act = c.paths.filter(p => p.status === "active");
   const done = c.paths.filter(p => p.status !== "active");
-  let h = '<div class="top"><div><h1>Yol Takip</h1><span id="cs" class="cs off"></span></div><div class="acts"><button class="pill" data-a="wa">WhatsApp</button><button class="pill" data-a="settings">Ayarlar</button></div></div>';
+  let h = '<div class="top"><div><h1>Yol Takip</h1><span id="cs" class="cs off"></span></div><div class="acts"><button class="pill" data-a="wa">WhatsApp</button>' + (ed ? '<button class="pill" data-a="settings">Ayarlar</button>' : '<button class="pill" data-a="unlock">Düzenle</button>') + '</div></div>';
   h += '<div class="sign' + (st.net < 0 ? " neg" : "") + '"><div class="sline"><span>Dönem ' + S.cycles.length + ' · gün ' + dayNo(c) + '/' + c.length + '</span><span>' + c.paths.length + '/' + c.length + ' yol</span></div>' +
     '<div class="big">' + signed(st.net) + '</div>' +
     '<div class="stats"><div><span>Yatırılan</span><b>' + money(st.inv) + '</b></div><div><span>Çekilen</span><b>' + money(st.wd) + '</b></div><div><span>Oyunda</span><b>' + money(st.play) + '</b></div></div></div>';
-  if (undo.length) h += '<button class="undobar" data-a="undo">Son işlemi geri al</button>';
+  if (ed && undo.length) h += '<button class="undobar" data-a="undo">Son işlemi geri al</button>';
   if (tab === "aktif") {
     const kasa = r2(act.reduce((a, p) => a + p.balance, 0));
-    h += '<div class="card kasa"><div><span class="mute small">Kasa · ' + act.length + ' aktif yol</span><div class="kv">' + money(kasa) + '</div></div><button class="btn" data-a="split">Kasayı böl</button></div>';
+    h += '<div class="card kasa"><div><span class="mute small">Kasa · ' + act.length + ' aktif yol</span><div class="kv">' + money(kasa) + '</div></div>' + (ed ? '<button class="btn" data-a="split">Kasayı böl</button>' : '') + '</div>';
   }
-  if (tab === "aktif") h += act.length ? act.map(p => card(p, c)).join("") : '<div class="empty">Aktif yol yok. Sağ alttaki Yol aç ile bugünün yolunu başlat.</div>';
+  if (tab === "aktif") h += act.length ? act.map(p => card(p, c)).join("") : '<div class="empty">Aktif yol yok.' + (ed ? ' Sağ alttaki Yol aç ile bugünün yolunu başlat.' : '') + '</div>';
   if (tab === "kapanan") h += done.length ? done.slice().reverse().map(p => card(p, c)).join("") : '<div class="empty">Henüz biten yol yok.</div>';
   if (tab === "ozet") {
     const all = stats(S.cycles);
@@ -592,9 +648,10 @@ function render(){
       return '<div class="pr"><div class="grow"><b>Dönem ' + i + (cc === c ? " (şu an)" : "") + '</b><div class="small mute">' + fmtD(cc.start) + ' · ' + cc.paths.length + '/' + cc.length + ' yol · Yatırılan ' + money(s.inv) + ' · Çekilen ' + money(s.wd) + '</div></div>' +
         '<b class="' + (s.net >= 0 ? "pos" : "neg") + '">' + signed(s.net) + '</b></div>';
     }).join("") + '</div></div>';
-    h += '<button class="btn ghost" style="width:100%" data-a="cyclebox">Yeni dönem başlat</button>';
+    if (ed) h += '<button class="btn ghost" style="width:100%" data-a="cyclebox">Yeni dönem başlat</button>';
+    if (ed && hasLock()) h += '<button class="btn" style="width:100%;margin-top:8px" data-a="lockn">Şimdi kilitle</button>';
   }
-  h += '<button class="fab" data-a="openbox"' + (full ? " disabled" : "") + '>+ Yol aç</button>';
+  if (ed) h += '<button class="fab" data-a="openbox"' + (full ? " disabled" : "") + '>+ Yol aç</button>';
   h += '<nav class="nav">' + navBtn("aktif", "Yollar", ICO.road, act.length) + navBtn("kapanan", "Biten", ICO.done, done.length) + navBtn("ozet", "Özet", ICO.sum, null) + '</nav>';
   document.getElementById("app").innerHTML = h;
   setCloud(cState);
@@ -733,7 +790,13 @@ function cloudInit(){
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-a]"); if (!b) return;
   const a = b.dataset.a, id = Number(b.dataset.id);
-  if (a === "open") openPath();
+  if (EDITS.has(a)) { if (!canEdit()) { openUnlock(); return; } touchEdit(); }
+  if (a === "unlock") { if (hasLock() && !canEdit()) openUnlock(); }
+  else if (a === "doun") doUnlock();
+  else if (a === "lockn") lockNow();
+  else if (a === "setpw") setPassword();
+  else if (a === "rmpw") removePassword();
+  else if (a === "open") openPath();
   else if (a === "openbox") openPathSheet();
   else if (a === "split") openSplit();
   else if (a === "splitok") doSplit();
@@ -767,6 +830,8 @@ document.addEventListener("click", e => {
   else if (a === "cyclebox") openCycleConfirm();
   else if (a === "newcycle") startCycle();
 });
+document.addEventListener("input", touchEdit);
+setInterval(() => { if (canEdit() !== wasEd) render(); }, 10000);
 document.getElementById("sheet").addEventListener("click", e => { if (e.target.id === "sheet") closeSheet(); });
 render();
 cloudInit();

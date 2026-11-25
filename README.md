@@ -24,6 +24,14 @@ Birkaç ortağın her gün ortak para koyup bir "yol" açtığı, yolların sonu
 
 Yerel olarak denemek için `index.html` dosyasını tarayıcıda açmak yeterlidir. Service worker için bir yerel sunucu gerekir, örneğin `python3 -m http.server`.
 
+## Düzenleme şifresi
+
+**Ayarlar > Düzenleme şifresi**'nden şifre belirlenirse uygulama yalnızca sonuçları gösterir (net kart, yollar, bakiyeler, özet, WhatsApp özeti). **Düzenle** düğmesi şifre ister. 5 dakika işlem yapılmazsa ya da sayfa yenilenirse tekrar kilitlenir. Şifre belirlenmezse düzenleme eskisi gibi herkese açıktır.
+
+Şifrenin yalnızca tuzlu özeti (PBKDF2-SHA256) `S.lock` içinde veriyle birlikte eşitlenir, böylece bütün ortaklarda aynı şifre geçerli olur. Şifre repoda tutulmaz.
+
+Bu kilit yanlışlıkla değişikliği ve sonuçlara bakanların düzenlemesini engeller. Güvenlik sınırı değildir: kontrol tarayıcıda yapılır ve Firebase kuralı grup kodunu bilen herkese yazma izni verir. Grup kodunu paylaşmayın.
+
 ## Bulut eşitleme (Firebase)
 
 Eşitleme Firebase Realtime Database üzerinden REST + SSE ile yapılır, SDK yoktur.
@@ -75,6 +83,7 @@ S = {
       log: []            // win | loss | cek | split kayıtları
     } ]
   } ],
+  lock,      // { salt, hash } düzenleme şifresi özeti, isteğe bağlı
   updated
 }
 ```
