@@ -113,6 +113,13 @@ input[type=date],input[type=text],textarea{font:inherit;font-size:16px;color:var
 .fab{position:fixed;bottom:calc(84px + env(safe-area-inset-bottom,0px));right:max(30px,calc(50% - 230px));z-index:11;font:inherit;font-weight:800;font-size:15px;color:var(--onyellow);background:var(--yellow);border:0;border-radius:999px;height:50px;padding:0 20px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.28)}
 .fab:disabled{opacity:.45}
 
+/* host rozeti (ör. Netlify) sag altta durursa altta bosluk birak */
+body.badge #app{padding-bottom:230px}
+body.badge .nav{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}
+body.badge .fab{bottom:calc(148px + env(safe-area-inset-bottom,0px))}
+body.badge #toast{bottom:calc(156px + env(safe-area-inset-bottom,0px))}
+body.badge .sh{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+
 /* alt sayfa ve bildirim */
 #sheet{position:fixed;inset:0;background:rgba(8,12,17,.55);display:none;align-items:flex-end;justify-content:center;z-index:20}
 #sheet.show{display:flex}
@@ -831,6 +838,8 @@ document.addEventListener("click", e => {
   else if (a === "newcycle") startCycle();
 });
 document.addEventListener("input", touchEdit);
+const syncBadge = () => document.body.classList.toggle("badge", !!(document.getElementById("nl-badge-frame") || document.getElementById("nl-hud-frame")));
+new MutationObserver(syncBadge).observe(document.body, {childList: true}); syncBadge();
 setInterval(() => { if (canEdit() !== wasEd) render(); }, 10000);
 document.getElementById("sheet").addEventListener("click", e => { if (e.target.id === "sheet") closeSheet(); });
 render();
