@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Yol Takip</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Yol Takip">
+<meta name="theme-color" content="#0c6a4b">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#e9edf2; --surface:#ffffff; --ink:#131a22; --mute:#66717e; --line:#dbe1e8; --soft:#f1f4f7;
+  --asphalt:#2a313a; --dash:#ffffff; --yellow:#f6bd00; --onyellow:#1b1500;
+  --sign:#0c6a4b; --signneg:#a93228; --onsign:#ffffff;
+  --good:#0d7a4f; --goodb:#dcf2e7; --bad:#b3342b; --badb:#fbe5e2;
+  --font:-apple-system,"SF Pro Display","Segoe UI Variable","Segoe UI",Roboto,"Helvetica Neue",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1217; --surface:#181e26; --ink:#eef2f6; --mute:#93a0ad; --line:#2a3340; --soft:#202833;
+    --asphalt:#0a0d11; --sign:#0f7a56; --signneg:#c23a2f;
+    --good:#4cd18f; --goodb:#123826; --bad:#ff8a80; --badb:#3d1c19;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1217; --surface:#181e26; --ink:#eef2f6; --mute:#93a0ad; --line:#2a3340; --soft:#202833;
+  --asphalt:#0a0d11; --sign:#0f7a56; --signneg:#c23a2f;
+  --good:#4cd18f; --goodb:#123826; --bad:#ff8a80; --badb:#3d1c19;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.45;font-variant-numeric:tabular-nums;-webkit-text-size-adjust:100%}
+#app{max-width:520px;margin:0 auto;padding:18px 30px 160px}
+
+/* yan imza */
+.side{position:fixed;top:50%;font-size:11px;font-weight:600;letter-spacing:.32em;color:var(--mute);writing-mode:vertical-rl;opacity:.85;z-index:1;pointer-events:none;user-select:none;white-space:nowrap}
+.side.l{left:max(9px,calc(50% - 252px));transform:translateY(-50%) rotate(180deg)}
+.side.r{right:max(9px,calc(50% - 252px));transform:translateY(-50%)}
+
+/* ust bar */
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.top h1{font-size:24px;margin:0;font-weight:800;letter-spacing:-.03em}
+.acts{display:flex;gap:6px}
+.pill{font:inherit;font-size:13px;font-weight:600;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:999px;height:36px;padding:0 14px;cursor:pointer}
+
+/* tabela */
+.sign{--sb:var(--sign);background:var(--sb);color:var(--onsign);border-radius:24px;padding:20px 20px 18px;margin-bottom:16px;box-shadow:inset 0 0 0 4px var(--sb),inset 0 0 0 6px rgba(255,255,255,.9)}
+.sign.neg{--sb:var(--signneg)}
+.sign .sline{display:flex;justify-content:space-between;font-size:13px;opacity:.85}
+.sign .big{font-size:42px;font-weight:800;letter-spacing:-.035em;line-height:1.1;margin:6px 0 16px}
+.sign .stats{display:grid;grid-template-columns:repeat(3,1fr)}
+.sign .stats div{padding:0 10px;border-left:1px solid rgba(255,255,255,.3)}
+.sign .stats div:first-child{padding-left:0;border-left:0}
+.sign .stats span{display:block;font-size:12px;opacity:.8}
+.sign .stats b{font-size:15px;font-weight:700}
+
+/* kartlar */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:12px}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.small{font-size:13px}.mute{color:var(--mute)}
+.pos{color:var(--good)}.neg{color:var(--bad)}
+.path .pt{font-size:17px;font-weight:700}
+.path .bal{font-size:26px;font-weight:800;letter-spacing:-.03em}
+.path.lost .bal{color:var(--mute);text-decoration:line-through}
+.road{position:relative;height:12px;border-radius:6px;background:var(--asphalt);margin:18px 6px 10px}
+.road::before{content:"";position:absolute;left:10px;right:10px;top:50%;height:2px;margin-top:-1px;background:repeating-linear-gradient(90deg,var(--dash) 0 7px,transparent 7px 14px);opacity:.7}
+.road i{position:absolute;top:50%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background:var(--yellow);border:3px solid var(--surface);box-shadow:0 0 0 1px var(--asphalt)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{font-size:12px;color:var(--mute);background:var(--soft);border-radius:999px;padding:4px 10px}
+.chip b{color:var(--ink);font-weight:700}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--goodb);color:var(--good);margin-left:8px;vertical-align:2px}
+.tag.bad{background:var(--badb);color:var(--bad)}
+.btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:14px}
+details{margin-top:10px;font-size:13px;color:var(--mute)}
+summary{cursor:pointer;padding:4px 0}
+.log div{display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid var(--line)}
+.empty{text-align:center;color:var(--mute);padding:34px 12px}
+.fix{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px}
+.lnk{font:inherit;font-size:13px;font-weight:600;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:7px 12px;cursor:pointer}
+.lnk.bad{color:var(--bad)}
+.cs{display:block;font-size:12px;color:var(--mute);margin-top:1px}
+.cs.off{display:none}
+.cs::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--mute);margin-right:6px;vertical-align:1px}
+.cs.ok::before{background:var(--good)}
+.cs.offline::before{background:#d98a00}
+.kasa{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.kasa .kv{font-size:24px;font-weight:800;letter-spacing:-.03em}
+.kasa .btn{flex:none}
+.undobar{display:block;width:100%;font:inherit;font-size:14px;font-weight:600;color:var(--ink);background:var(--surface);border:1px dashed var(--mute);border-radius:14px;padding:10px;margin:-4px 0 14px;cursor:pointer}
+
+/* butonlar ve alanlar */
+.btn{font:inherit;font-weight:700;font-size:15px;border:0;border-radius:14px;padding:13px 14px;cursor:pointer;color:var(--onyellow);background:var(--yellow)}
+.btn.ghost{background:var(--soft);color:var(--ink);border:1px solid var(--line)}
+.btn.win{background:var(--goodb);color:var(--good)}
+.btn.lose{background:var(--badb);color:var(--bad)}
+.btn.cash{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btns .btn{padding:12px 6px;font-size:14px}
+.btn:disabled{opacity:.45}
+.btn:focus-visible,.lnk:focus-visible,.undobar:focus-visible,.pill:focus-visible,.nav button:focus-visible,.fab:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+input[type=date],input[type=text],textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:11px 13px;width:100%}
+
+/* alt gezinme ve ana buton */
+.nav{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:min(520px,100%);display:flex;gap:4px;background:var(--surface);border-top:1px solid var(--line);padding:8px 14px calc(8px + env(safe-area-inset-bottom,0px));z-index:10}
+.nav button{flex:1;border:0;background:none;color:var(--mute);font:inherit;font-size:12px;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 0;border-radius:14px;cursor:pointer}
+.nav button.on{color:var(--ink);font-weight:700;background:var(--soft)}
+.fab{position:fixed;bottom:calc(84px + env(safe-area-inset-bottom,0px));right:max(30px,calc(50% - 230px));z-index:11;font:inherit;font-weight:800;font-size:15px;color:var(--onyellow);background:var(--yellow);border:0;border-radius:999px;height:50px;padding:0 20px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.28)}
+.fab:disabled{opacity:.45}
+
+/* alt sayfa ve bildirim */
+#sheet{position:fixed;inset:0;background:rgba(8,12,17,.55);display:none;align-items:flex-end;justify-content:center;z-index:20}
+#sheet.show{display:flex}
+.sh{position:relative;width:100%;max-width:520px;background:var(--surface);border-radius:26px 26px 0 0;padding:26px 20px calc(20px + env(safe-area-inset-bottom,0px));max-height:90%;overflow:auto;animation:up .2s ease-out}
+.sh::before{content:"";position:absolute;top:9px;left:50%;width:38px;height:4px;margin-left:-19px;border-radius:2px;background:var(--line)}
+@keyframes up{from{transform:translateY(24px);opacity:0}}
+@media (prefers-reduced-motion: reduce){.sh{animation:none}}
+.sh h2{margin:0 0 4px;font-size:20px;letter-spacing:-.02em}
+.sh label{display:block;font-size:13px;color:var(--mute);margin:14px 0 5px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.prev{margin-top:12px;padding:11px 13px;border-radius:14px;background:var(--soft);font-size:14px;min-height:42px}
+.stakeline{display:flex;justify-content:space-between;align-items:baseline;margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)}
+.stakeline b{font-size:22px;letter-spacing:-.02em}
+.prow{display:grid;grid-template-columns:1fr 76px auto;gap:6px;margin-bottom:6px;align-items:center}
+.chk{font-size:13px;color:var(--mute);display:flex;align-items:center;gap:4px;margin:0!important}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:999px;font-size:14px;display:none;align-items:center;gap:14px;z-index:30;max-width:92%}
+#toast.show{display:flex}
+#toast button{font:inherit;font-weight:700;background:none;border:0;color:inherit;text-decoration:underline;cursor:pointer;padding:0}
+
+/* ozet */
+.ln{display:flex;justify-content:space-between;padding:5px 0}
+.pr{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.pr:first-of-type{border-top:0}
+.pr .grow{flex:1;min-width:0}
+.av{width:38px;height:38px;border-radius:50%;background:var(--asphalt);color:#fff;display:grid;place-items:center;font-weight:700;flex:none}
+</style>
+</head>
+<body>
+<div class="side l">Hasan Kıroğlu</div>
+<div class="side r">Hasan Kıroğlu</div>
+<div id="app"></div>
+<div id="sheet"></div>
+<div id="toast"></div>
+<script>
+const KEY = "yol-takip-v1";
+const TRY = new Intl.NumberFormat("tr-TR", {style:"currency", currency:"TRY", maximumFractionDigits:2});
+const money = n => TRY.format(n || 0);
+const signed = n => (n > 0 ? "+" : "") + money(n);
+const r2 = n => Math.round(n * 100) / 100;
+const pad = n => String(n).padStart(2, "0");
+const todayStr = () => { const d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()); };
+const pd = s => { const [a,b,c] = s.split("-").map(Number); return new Date(a, b-1, c); };
+const fmtD = s => pd(s).toLocaleDateString("tr-TR", {day:"numeric", month:"short"});
+const num = v => parseFloat(String(v).replace(",", "."));
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
+const fmtIn = n => String(r2(n)).replace(".", ",");
+
+function newCycle(rules){ return {id: Date.now(), start: todayStr(), length: rules.length, rules: {...rules}, paths: []}; }
+function fresh(){
+  const rules = {target:500, keep:50, length:30};
+  return {rules, partners:[{id:1, name:"Ben", amt:25, on:true}, {id:2, name:"Arkadaş 1", amt:25, on:true}, {id:3, name:"Arkadaş 2", amt:25, on:true}], cycles:[newCycle(rules)]};
+}
+function migrate(){
+  if (!S.partners || !S.partners.length) S.partners = [{id:1, name:"Ben", amt:25, on:true}, {id:2, name:"Arkadaş 1", amt:25, on:true}, {id:3, name:"Arkadaş 2", amt:25, on:true}];
+  S.cycles.forEach(c => {
+    if (!c.splits) c.splits = {};
+    c.paths.forEach(p => {
+      if (!p.contrib) { const eq = r2(p.stake / S.partners.length); p.contrib = {}; S.partners.forEach(x => p.contrib[x.id] = eq); }
+      if (p.status === "won") p.status = "active";
+      if (!p.own) { p.own = {}; for (const id in p.contrib) p.own[id] = p.contrib[id] / p.stake; }
+      const sum = p.wdBy ? Object.values(p.wdBy).reduce((x, y) => x + y, 0) : null;
+      if (!p.wdBy || Math.abs(sum - p.withdrawn) > 0.02) { p.wdBy = {}; for (const id in p.own) p.wdBy[id] = r2(p.withdrawn * p.own[id]); }
+    });
+  });
+}
+
+let S;
+try { S = JSON.parse(localStorage.getItem(KEY)); } catch(e) { S = null; }
+if (!S || !S.cycles || !S.cycles.length) S = fresh();
+migrate();
+let undo = [], tab = "aktif", toastTimer = null, winPath = null, cashPath = null;
+
+const cur = () => S.cycles[S.cycles.length - 1];
+const activePartners = () => S.partners.filter(x => x.on);
+const dailyStake = () => r2(activePartners().reduce((a, x) => a + x.amt, 0));
+
+function mutate(fn, msg){
+  undo.push(JSON.stringify(S)); if (undo.length > 25) undo.shift();
+  fn(); save(); render();
+  if (msg) toast(msg, true);
+}
+function doUndo(){
+  if (!undo.length) return;
+  S = JSON.parse(undo.pop()); save(); render(); hideToast();
+}
+function toast(msg, withUndo){
+  const t = document.getElementById("toast");
+  t.innerHTML = "<span>" + msg + "</span>" + (withUndo ? '<button data-a="undo">Geri al</button>' : "");
+  t.classList.add("show"); clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, 5000);
+}
+function hideToast(){ document.getElementById("toast").classList.remove("show"); }
+
+function stats(cs){
+  const per = {}; S.partners.forEach(x => per[x.id] = {inv:0, wd:0, play:0});
+  const q = id => per[id] || (per[id] = {inv:0, wd:0, play:0});
+  let inv = 0, wd = 0, play = 0;
+  cs.forEach(c => c.paths.forEach(p => {
+    const pl = p.status === "active" ? p.balance : 0;
+    inv += p.stake; wd += p.withdrawn; play += pl;
+    for (const id in p.contrib) q(id).inv += p.contrib[id];
+    for (const id in p.own) { q(id).play += pl * p.own[id]; q(id).wd += (p.wdBy && p.wdBy[id]) || 0; }
+  }));
+  for (const id in per) { const z = per[id]; z.inv = r2(z.inv); z.wd = r2(z.wd); z.play = r2(z.play); z.net = r2(z.wd + z.play - z.inv); }
+  inv = r2(inv); wd = r2(wd); play = r2(play);
+  return {inv, wd, play, net: r2(wd + play - inv), per};
+}
+function dayNo(c){
+  const d = Math.floor((pd(todayStr()) - pd(c.start)) / 86400000) + 1;
+  return Math.max(1, Math.min(d, c.length));
+}
+
+/* actions */
+function openPath(){
+  const c = cur();
+  const d = document.getElementById("od").value || todayStr();
+  const act = activePartners();
+  if (!act.length) { toast("En az bir aktif ortak gerekli."); return; }
+  if (c.paths.length >= c.length) { toast("Bu dönemin tüm yolları açıldı."); return; }
+  if (c.paths.some(p => p.date === d)) { toast("Bu tarih için yol zaten açılmış."); return; }
+  const n = c.paths.reduce((m, x) => Math.max(m, x.n), 0) + 1, contrib = {};
+  act.forEach(x => contrib[x.id] = x.amt);
+  const stake = dailyStake();
+  const own = {}; for (const id in contrib) own[id] = contrib[id] / stake;
+  mutate(() => { c.paths.push({id: Date.now(), n, date: d, stake, contrib, own, wdBy: {}, balance: stake, status: "active", withdrawn: 0, log: []}); }, "Yol " + n + " açıldı: " + money(stake));
+  closeSheet();
+}
+function lose(id){
+  const p = cur().paths.find(x => x.id === id); if (!p) return;
+  mutate(() => { p.log.push({t: todayStr(), type: "loss", from: p.balance}); p.balance = 0; p.status = "lost"; }, "Yol " + p.n + " kapandı.");
+}
+function applyWithdraw(p, w){
+  p.withdrawn = r2(p.withdrawn + w);
+  p.balance = r2(p.balance - w);
+  const by = {};
+  for (const j in p.own) { by[j] = r2(w * p.own[j]); p.wdBy[j] = r2((p.wdBy[j] || 0) + by[j]); }
+  p.log.push({t: todayStr(), type: "cek", amount: w, by});
+  if (p.balance <= 0) { p.balance = 0; p.status = "cashed"; }
+}
+
+/* win sheet */
+function openWin(id){
+  winPath = cur().paths.find(x => x.id === id); if (!winPath) return;
+  showSheet(
+    '<h2>Yol ' + winPath.n + ' kazandı</h2><div class="mute small">Şu anki bakiye: ' + money(winPath.balance) + '</div>' +
+    '<div class="two"><div><label for="wo">Oran</label><input id="wo" type="text" inputmode="decimal" placeholder="1,85"></div>' +
+    '<div><label for="wb">Yeni bakiye (₺)</label><input id="wb" type="text" inputmode="decimal" placeholder="92,50"></div></div>' +
+    '<label for="ww">Çekilecek tutar (₺, boş bırakırsan çekim yok)</label><input id="ww" type="text" inputmode="decimal" placeholder="0">' +
+    '<div class="prev" id="wp">Oranı ya da yeni bakiyeyi gir.</div>' +
+    '<div class="two" style="margin-top:12px"><button class="btn ghost" data-a="close">Vazgeç</button><button class="btn" data-a="savewin">Kaydet</button></div>'
+  );
+  const wo = document.getElementById("wo"), wb = document.getElementById("wb"), ww = document.getElementById("ww");
+  const upd = () => { const b = num(wb.value), r = cur().rules; ww.value = b >= r.target ? fmtIn(b - r.keep) : ""; winPrev(); };
+  wo.addEventListener("input", () => { const o = num(wo.value); if (o > 0) wb.value = fmtIn(winPath.balance * o); upd(); });
+  wb.addEventListener("input", () => { const b = num(wb.value); if (b > 0) wo.value = fmtIn(b / winPath.balance); upd(); });
+  ww.addEventListener("input", winPrev);
+  setTimeout(() => wo.focus(), 50);
+}
+function winPrev(){
+  const c = cur(), b = num(document.getElementById("wb").value), w = num(document.getElementById("ww").value) || 0, el = document.getElementById("wp");
+  if (!(b > 0)) { el.textContent = "Oranı ya da yeni bakiyeyi gir."; return; }
+  if (w > b) { el.textContent = "Çekim, bakiyeden büyük olamaz."; return; }
+  let t = "Yeni bakiye <b>" + money(b) + "</b>.";
+  if (b >= c.rules.target) t += " Hedefe ulaştı; kurala göre " + money(r2(b - c.rules.keep)) + " çekilir, istersen tutarı değiştir.";
+  if (w > 0) t += " Çekilen <b>" + money(w) + "</b>, oyunda kalan <b>" + money(r2(b - w)) + "</b>.";
+  el.innerHTML = t;
+}
+function saveWin(){
+  const p = winPath, nb = r2(num(document.getElementById("wb").value)), w = r2(num(document.getElementById("ww").value) || 0);
+  const el = document.getElementById("wp");
+  if (!p || !(nb > 0)) { el.textContent = "Geçerli bir tutar gir."; return; }
+  if (w < 0 || w > nb) { el.textContent = "Çekim 0 ile yeni bakiye arasında olmalı."; return; }
+  let msg = "Yol " + p.n + ": " + money(nb);
+  mutate(() => {
+    p.log.push({t: todayStr(), type: "win", from: p.balance, to: nb});
+    p.balance = nb;
+    if (w > 0) { applyWithdraw(p, w); msg = "Yol " + p.n + ": " + money(w) + " çekildi, " + money(p.balance) + " oyunda."; }
+  });
+  closeSheet(); toast(msg, true);
+}
+
+/* manual withdraw sheet */
+function openCash(id){
+  cashPath = cur().paths.find(x => x.id === id); if (!cashPath) return;
+  showSheet(
+    '<h2>Yol ' + cashPath.n + ' çekim</h2><div class="mute small">Bakiye: ' + money(cashPath.balance) + '</div>' +
+    '<label for="wc">Çekilecek tutar (₺)</label><input id="wc" type="text" inputmode="decimal" placeholder="0">' +
+    '<div class="prev" id="cp">Tutarı gir.</div>' +
+    '<div class="two" style="margin-top:12px"><button class="btn ghost" data-a="cashall">Tamamını çek</button><button class="btn" data-a="savecash">Çek</button></div>' +
+    '<button class="btn ghost" style="width:100%;margin-top:8px" data-a="close">Vazgeç</button>'
+  );
+  const wc = document.getElementById("wc");
+  wc.addEventListener("input", cashPrev);
+  setTimeout(() => wc.focus(), 50);
+}
+function cashPrev(){
+  const a = num(document.getElementById("wc").value), el = document.getElementById("cp");
+  if (!(a > 0)) { el.textContent = "Tutarı gir."; return; }
+  if (a > cashPath.balance) { el.textContent = "Çekim, bakiyeden büyük olamaz."; return; }
+  el.innerHTML = "Çekilen <b>" + money(a) + "</b>, oyunda kalan <b>" + money(r2(cashPath.balance - a)) + "</b>.";
+}
+function saveCash(){
+  const p = cashPath, a = r2(num(document.getElementById("wc").value));
+  if (!p || !(a > 0) || a > p.balance) { cashPrev(); return; }
+  mutate(() => applyWithdraw(p, a));
+  closeSheet(); toast("Yol " + p.n + ": " + money(a) + " çekildi.", true);
+}
+
+function startCycle(){
+  mutate(() => { S.cycles.push(newCycle(S.rules)); }, "Yeni dönem başladı.");
+  tab = "aktif"; closeSheet(); render();
+}
+
+/* sheet */
+function showSheet(html){ const s = document.getElementById("sheet"); s.innerHTML = '<div class="sh">' + html + '</div>'; s.classList.add("show"); }
+function closeSheet(){ document.getElementById("sheet").classList.remove("show"); winPath = null; cashPath = null; }
+function openCycleConfirm(){
+  showSheet('<h2>Yeni dönem başlat</h2><p class="mute">Mevcut dönem arşive taşınır. Açık yollar o dönemde kalır, yeni dönem sıfırdan başlar.</p>' +
+    '<div class="two"><button class="btn ghost" data-a="close">Vazgeç</button><button class="btn" data-a="newcycle">Başlat</button></div>');
+}
+
+/* settings */
+function openSettings(){
+  const r = S.rules;
+  const rows = S.partners.map((x, i) =>
+    '<div class="prow"><input id="pn' + i + '" type="text" value="' + esc(x.name) + '" aria-label="Ortak adı">' +
+    '<input id="pa' + i + '" type="text" inputmode="decimal" value="' + x.amt + '" aria-label="Günlük tutar">' +
+    '<label class="chk"><input type="checkbox" id="po' + i + '"' + (x.on ? " checked" : "") + '>aktif</label></div>').join("");
+  showSheet('<h2>Ayarlar</h2>' +
+    '<label>Ortaklar ve günlük payları (₺)</label>' + rows +
+    '<button class="btn ghost" style="width:100%" data-a="addpartner">Ortak ekle</button>' +
+    '<div class="mute small" style="margin-top:6px">Günlük toplam: ' + money(dailyStake()) + '. Ortak değişiklikleri yalnızca sonradan açılacak yollara uygulanır.</div>' +
+    '<div class="two"><div><label for="s2">Dönem (gün)</label><input id="s2" type="text" inputmode="numeric" value="' + r.length + '"></div><div></div>' +
+    '<div><label for="s3">Çekim hedefi (₺)</label><input id="s3" type="text" inputmode="decimal" value="' + r.target + '"></div>' +
+    '<div><label for="s4">Hedefte oyunda kalan (₺)</label><input id="s4" type="text" inputmode="decimal" value="' + r.keep + '"></div></div>' +
+    '<button class="btn" style="width:100%;margin-top:12px" data-a="savesettings">Ayarları kaydet</button>' +
+    '<div class="prev" id="sp" style="display:none"></div>' +
+    cloudBlock() + '<label for="bk">Yedek / telefondan telefona aktarım</label><textarea id="bk" rows="4">' + esc(JSON.stringify(S)) + '</textarea>' +
+    '<div class="two" style="margin-top:8px"><button class="btn ghost" data-a="copy">Kopyala</button><button class="btn ghost" data-a="import">Metinden yükle</button></div>' +
+    '<button class="btn ghost" style="width:100%;margin-top:12px" data-a="close">Kapat</button>');
+}
+function readPartners(){
+  return S.partners.map((x, i) => ({id: x.id, name: document.getElementById("pn" + i).value.trim(), amt: r2(num(document.getElementById("pa" + i).value)), on: document.getElementById("po" + i).checked}));
+}
+function partnersError(ps){
+  if (ps.some(x => !x.name || !(x.amt > 0))) return "Her ortağın adı ve günlük payı (0’dan büyük) olmalı.";
+  if (!ps.some(x => x.on)) return "En az bir ortak aktif olmalı.";
+  return "";
+}
+function setSp(t){ const p = document.getElementById("sp"); if (!p) { toast(t); return; } p.style.display = "block"; p.textContent = t; }
+function addPartner(){
+  const ps = readPartners(), err = partnersError(ps);
+  if (err) { setSp(err); return; }
+  ps.push({id: Date.now(), name: "Ortak " + (ps.length + 1), amt: 25, on: true});
+  mutate(() => { S.partners = ps; });
+  openSettings();
+}
+function saveSettings(){
+  const ps = readPartners(), err = partnersError(ps);
+  const v = ["s2", "s3", "s4"].map(i => num(document.getElementById(i).value));
+  if (err) { setSp(err); return; }
+  if (v.some(x => !(x > 0)) || v[2] >= v[1] || v[0] > 366) { setSp("Değerler geçerli olmalı; hedefte kalan tutar hedeften küçük olmalı."); return; }
+  mutate(() => {
+    S.partners = ps;
+    S.rules = {length: Math.round(v[0]), target: v[1], keep: v[2]};
+    const c = cur(); c.rules = {...S.rules}; c.length = S.rules.length;
+  });
+  closeSheet(); toast("Ayarlar kaydedildi.");
+}
+function doImport(){
+  try {
+    const d = JSON.parse(document.getElementById("bk").value);
+    if (!d.cycles || !d.cycles.length || !d.rules) throw 0;
+    undo.push(JSON.stringify(S)); S = d; migrate(); save(); closeSheet(); render(); toast("Veri yüklendi.", true);
+  } catch(e) { setSp("Metin okunamadı. Yedek metnini eksiksiz yapıştır."); }
+}
+function doCopy(){
+  const t = document.getElementById("bk");
+  t.select();
+  let ok = false;
+  try { navigator.clipboard.writeText(t.value); ok = true; } catch(e) {}
+  setSp(ok ? "Kopyalandı." : "Metin seçildi; elle kopyalayabilirsin.");
+}
+function summaryText(){
+  const c = cur(), st = stats([c]), all = stats(S.cycles);
+  let t = "Yol Takip - Dönem " + S.cycles.length + " (gün " + dayNo(c) + "/" + c.length + ", " + c.paths.length + " yol)\n";
+  t += "Yatırılan: " + money(st.inv) + "\nÇekilen: " + money(st.wd) + "\nOyunda: " + money(st.play) + "\nNet: " + signed(st.net) + "\n\nKişi bazında:\n";
+  S.partners.forEach(x => { const q = st.per[x.id]; if (q && q.inv > 0) t += x.name + ": yatırdı " + money(q.inv) + ", çekim payı " + money(q.wd) + ", oyundaki payı " + money(q.play) + ", net " + signed(q.net) + "\n"; });
+  if (S.cycles.length > 1) t += "\nTüm dönemler: yatırılan " + money(all.inv) + ", çekilen " + money(all.wd) + ", oyunda " + money(all.play) + ", net " + signed(all.net) + "\n";
+  return t;
+}
+function copySummary(){
+  const t = summaryText();
+  let ok = false;
+  try { navigator.clipboard.writeText(t); ok = true; } catch(e) {}
+  if (ok) toast("Özet kopyalandı.");
+  else showSheet('<h2>Özet</h2><textarea id="st" rows="10" readonly>' + esc(t) + '</textarea><button class="btn" style="width:100%;margin-top:10px" data-a="close">Kapat</button>');
+}
+
+/* whatsapp ozeti */
+const plain = n => Number.isInteger(r2(n)) ? String(r2(n)) : fmtIn(n);
+function waText(){
+  const c = cur(), st = stats([c]);
+  let t = "";
+  c.paths.forEach(p => {
+    const res = p.log.slice().reverse().find(e => e.type === "win" || e.type === "loss" || e.type === "split");
+    let a, b;
+    if (!res) { a = p.stake; b = null; }
+    else { a = res.from; b = p.status === "lost" ? 0 : p.status === "cashed" ? (res.to != null ? res.to : 0) : p.balance; }
+    const line = p.n + ".Gün " + plain(a) + " - " + (b === null ? "?" : plain(b));
+    t += (p.status === "active" ? line : "~" + line + "~") + "\n";
+  });
+  t += "\nYatırılan: " + money(st.inv) + "\nÇekilen: " + money(st.wd) + "\nOyunda: " + money(st.play) + "\nNet: " + signed(st.net);
+  return t;
+}
+function openWa(){
+  showSheet('<h2>WhatsApp özeti</h2><div class="mute small" style="margin-bottom:8px">Kapanan yollar üstü çizili görünür. Her satır: önceki bakiye - güncel bakiye.</div>' +
+    '<textarea id="wa" rows="14" readonly>' + esc(waText()) + '</textarea>' +
+    '<div class="two" style="margin-top:10px"><button class="btn" data-a="copywa">Kopyala</button><button class="btn ghost" data-a="close">Kapat</button></div>' +
+    '<div class="prev" id="sp" style="display:none"></div>');
+}
+function copyWa(){
+  const t = document.getElementById("wa");
+  t.select();
+  let ok = false;
+  try { navigator.clipboard.writeText(t.value); ok = true; } catch(e) {}
+  setSp(ok ? "Kopyalandı. WhatsApp’a yapıştırabilirsin." : "Metin seçildi; elle kopyalayabilirsin.");
+}
+
+/* render */
+function logHtml(p){
+  const rows = p.log.slice().reverse().map(e => {
+    if (e.type === "loss") return '<div><span>' + fmtD(e.t) + ' · Kaybetti</span><span>' + money(e.from) + ' → ₺0</span></div>';
+    if (e.type === "split") return '<div><span>' + fmtD(e.t) + ' · Kasa bölündü</span><span>' + money(e.from) + ' → ' + money(e.to) + '</span></div>';
+    if (e.type === "win") return '<div><span>' + fmtD(e.t) + ' · Kazandı</span><span>' + money(e.from) + ' → ' + money(e.to) + '</span></div>';
+    return '<div><span>' + fmtD(e.t) + ' · Çekim</span><span>' + money(e.amount) + '</span></div>';
+  }).join("");
+  const fix = (p.log.length ? '<button class="lnk" data-a="dellast" data-id="' + p.id + '">Son işlemi sil</button>' : '') +
+    '<button class="lnk bad" data-a="delpath" data-id="' + p.id + '">Yolu sil</button>';
+  return '<details><summary>Geçmiş ve düzeltme' + (p.log.length ? ' (' + p.log.length + ')' : '') + '</summary><div class="log">' + rows + '</div><div class="fix">' + fix + '</div></details>';
+}
+function delLast(id){
+  const p = cur().paths.find(x => x.id === id); if (!p || !p.log.length) return;
+  const e = p.log[p.log.length - 1];
+  if (e.type === "split") { undoSplit(e.sid); return; }
+  mutate(() => {
+    p.log.pop();
+    if (e.type === "cek") {
+      p.balance = r2(p.balance + e.amount); p.withdrawn = r2(p.withdrawn - e.amount);
+      const by = e.by || Object.fromEntries(Object.keys(p.own).map(j => [j, e.amount * p.own[j]]));
+      for (const j in by) p.wdBy[j] = r2((p.wdBy[j] || 0) - by[j]);
+    } else p.balance = e.from;
+    p.status = "active";
+  }, "Yol " + p.n + ": son işlem silindi.");
+}
+
+/* kasa bolme */
+function splitPlan(){
+  const c = cur();
+  const last = c.paths.reduce((m, x) => (!m || x.n > m.n) ? x : m, null);
+  const part = c.paths.filter(p => p.status === "active" && p !== last).sort((a, b) => a.n - b.n);
+  const k = part.length, cents = Math.round(part.reduce((a, p) => a + p.balance, 0) * 100);
+  const base = k ? Math.floor(cents / k) : 0, rem = k ? cents - base * k : 0;
+  return {c, last, part, k, total: cents / 100, base, rem, newBal: i => (base + (i < rem ? 1 : 0)) / 100};
+}
+function openSplit(){
+  const pl = splitPlan();
+  if (pl.k < 2) { toast("Bölmek için son yol dışında en az 2 aktif yol gerekir."); return; }
+  const rows = pl.part.map((p, i) => '<div><span>Yol ' + p.n + '</span><span>' + money(p.balance) + ' → <b>' + money(pl.newBal(i)) + '</b></span></div>').join("");
+  showSheet('<h2>Kasayı böl</h2>' +
+    '<div class="mute small">Son açılan yol (Yol ' + pl.last.n + ', ' + money(pl.last.balance) + ') ve kapanan yollar bölmeye girmez.' + (pl.last.log.length ? ' Son yola sonuç girilmiş, yine de hariç tutulur.' : '') + '</div>' +
+    '<div class="stakeline"><span class="mute">' + pl.k + ' yolun toplamı</span><b>' + money(pl.total) + '</b></div>' +
+    '<div class="stakeline" style="border-top:0;margin-top:2px;padding-top:0"><span class="mute">Her yola' + (pl.rem ? ' (yaklaşık)' : '') + '</span><b>' + money(pl.base / 100) + '</b></div>' +
+    '<div class="log" style="margin-top:10px">' + rows + '</div>' +
+    '<div class="two" style="margin-top:16px"><button class="btn ghost" data-a="close">Vazgeç</button><button class="btn" data-a="splitok">Kasayı böl</button></div>');
+}
+function doSplit(){
+  const pl = splitPlan();
+  if (pl.k < 2) { closeSheet(); toast("Bölmek için son yol dışında en az 2 aktif yol gerekir."); return; }
+  const sid = String(Date.now()), c = pl.c;
+  const val = {};
+  pl.part.forEach(p => { for (const j in p.own) val[j] = (val[j] || 0) + p.balance * p.own[j]; });
+  closeSheet();
+  mutate(() => {
+    c.splits[sid] = {before: pl.part.map(p => ({id: p.id, balance: p.balance, own: {...p.own}}))};
+    pl.part.forEach((p, i) => {
+      const nb = pl.newBal(i);
+      p.log.push({t: todayStr(), type: "split", from: p.balance, to: nb, sid});
+      p.balance = nb;
+      if (pl.total > 0) { p.own = {}; for (const j in val) p.own[j] = val[j] / pl.total; }
+    });
+  }, "Kasa " + pl.k + " yola bölündü: " + money(pl.base / 100) + " civarı.");
+}
+function undoSplit(sid){
+  const c = cur(), sp = c.splits && c.splits[sid];
+  if (!sp) { toast("Bu bölmenin kaydı bulunamadı."); return; }
+  const ps = sp.before.map(b => c.paths.find(x => x.id === b.id));
+  const ok = ps.every(q => q && q.log.length && q.log[q.log.length - 1].type === "split" && q.log[q.log.length - 1].sid === sid);
+  if (!ok) { toast("Bölmeden sonra işlem girilmiş. Önce o işlemleri sil, sonra bölmeyi geri al."); return; }
+  mutate(() => {
+    sp.before.forEach((b, i) => { const q = ps[i]; q.log.pop(); q.balance = b.balance; q.own = {...b.own}; q.status = "active"; });
+    delete c.splits[sid];
+  }, "Kasa bölmesi geri alındı (tüm yollar).");
+}
+function openDelPath(id){
+  const p = cur().paths.find(x => x.id === id); if (!p) return;
+  showSheet('<h2>Yol ' + p.n + ' silinsin mi?</h2><p class="mute">Bu yolun tüm kayıtları ve çekimleri toplamlardan da çıkar. Hemen ardından Geri al ile döndürebilirsin; sayfayı kapatırsan geri alınamaz.</p>' +
+    '<div class="two"><button class="btn ghost" data-a="close">Vazgeç</button><button class="btn lose" data-a="confirmdel" data-id="' + id + '">Yolu sil</button></div>');
+}
+function delPath(id){
+  const c = cur(), p = c.paths.find(x => x.id === id); if (!p) return;
+  closeSheet();
+  mutate(() => { c.paths = c.paths.filter(x => x.id !== id); }, "Yol " + p.n + " silindi.");
+}
+const ICO = {
+  road: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 4 21M16 3l4 18M12 4v3M12 10.5v3M12 17v3"/></svg>',
+  done: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  sum: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>'
+};
+function openPathSheet(){
+  const c = cur(), ap = activePartners();
+  showSheet('<h2>Yeni yol aç</h2><div class="mute small">' + c.paths.length + '/' + c.length + ' yol açıldı</div>' +
+    '<div class="chips">' + ap.map(x => '<span class="chip">' + esc(x.name) + ' <b>' + money(x.amt) + '</b></span>').join("") + '</div>' +
+    '<div class="stakeline"><span class="mute">Günlük toplam</span><b>' + money(dailyStake()) + '</b></div>' +
+    '<label for="od">Tarih</label><input id="od" type="date" value="' + todayStr() + '">' +
+    '<div class="two" style="margin-top:16px"><button class="btn ghost" data-a="close">Vazgeç</button><button class="btn" data-a="open">Yolu aç</button></div>');
+}
+function card(p, c){
+  const pct = Math.max(0, Math.min(100, p.balance / c.rules.target * 100));
+  const pos = Math.max(2, Math.min(98, pct));
+  const lost = p.status === "lost", cashed = p.status === "cashed", active = p.status === "active";
+  const left = Math.max(0, r2(c.rules.target - p.balance));
+  return '<div class="card path' + (lost ? " lost" : "") + '">' +
+    '<div class="row"><div><b class="pt">Yol ' + p.n + '</b><span class="mute small"> · ' + fmtD(p.date) + '</span>' +
+    (cashed ? '<span class="tag">Tamamen çekildi</span>' : "") + (lost ? '<span class="tag bad">Kaybetti</span>' : "") + '</div>' +
+    '<div class="bal">' + money(p.balance) + '</div></div>' +
+    '<div class="road"><i style="left:' + pos + '%"></i></div>' +
+    '<div class="row small mute"><span>' + (active ? "Hedefe " + money(left) + " kaldı" : "Hedef " + money(c.rules.target)) + '</span><span>%' + Math.round(pct) + '</span></div>' +
+    '<div class="chips"><span class="chip">Yatırılan <b>' + money(p.stake) + '</b></span><span class="chip">Çekilen <b>' + money(p.withdrawn) + '</b></span></div>' +
+    (active ? '<div class="btns"><button class="btn win" data-a="win" data-id="' + p.id + '">Kazandı</button><button class="btn lose" data-a="lose" data-id="' + p.id + '">Kaybetti</button><button class="btn cash" data-a="cash" data-id="' + p.id + '">Çek</button></div>' : "") +
+    logHtml(p) + '</div>';
+}
+function navBtn(t, label, icon, count){
+  return '<button data-a="tab" data-t="' + t + '" class="' + (tab === t ? "on" : "") + '">' + icon + '<span>' + label + (count != null ? " " + count : "") + '</span></button>';
+}
+function render(){
+  const c = cur(), st = stats([c]), full = c.paths.length >= c.length;
+  const act = c.paths.filter(p => p.status === "active");
+  const done = c.paths.filter(p => p.status !== "active");
+  let h = '<div class="top"><div><h1>Yol Takip</h1><span id="cs" class="cs off"></span></div><div class="acts"><button class="pill" data-a="wa">WhatsApp</button><button class="pill" data-a="settings">Ayarlar</button></div></div>';
+  h += '<div class="sign' + (st.net < 0 ? " neg" : "") + '"><div class="sline"><span>Dönem ' + S.cycles.length + ' · gün ' + dayNo(c) + '/' + c.length + '</span><span>' + c.paths.length + '/' + c.length + ' yol</span></div>' +
+    '<div class="big">' + signed(st.net) + '</div>' +
+    '<div class="stats"><div><span>Yatırılan</span><b>' + money(st.inv) + '</b></div><div><span>Çekilen</span><b>' + money(st.wd) + '</b></div><div><span>Oyunda</span><b>' + money(st.play) + '</b></div></div></div>';
+  if (undo.length) h += '<button class="undobar" data-a="undo">Son işlemi geri al</button>';
+  if (tab === "aktif") {
+    const kasa = r2(act.reduce((a, p) => a + p.balance, 0));
+    h += '<div class="card kasa"><div><span class="mute small">Kasa · ' + act.length + ' aktif yol</span><div class="kv">' + money(kasa) + '</div></div><button class="btn" data-a="split">Kasayı böl</button></div>';
+  }
+  if (tab === "aktif") h += act.length ? act.map(p => card(p, c)).join("") : '<div class="empty">Aktif yol yok. Sağ alttaki Yol aç ile bugünün yolunu başlat.</div>';
+  if (tab === "kapanan") h += done.length ? done.slice().reverse().map(p => card(p, c)).join("") : '<div class="empty">Henüz biten yol yok.</div>';
+  if (tab === "ozet") {
+    const all = stats(S.cycles);
+    const line = (l, v, cl) => '<div class="ln"><span class="mute">' + l + '</span><b class="' + (cl || "") + '">' + v + '</b></div>';
+    h += '<div class="card"><b>Dönem ' + S.cycles.length + ' özeti</b><div style="margin-top:6px">' +
+      line("Yatırılan", money(st.inv)) + line("Çekilen", money(st.wd)) + line("Oyunda", money(st.play)) + line("Net", signed(st.net), st.net >= 0 ? "pos" : "neg") + '</div></div>';
+    h += '<div class="card"><b>Kişi bazında</b><div style="margin-top:4px">' + S.partners.filter(x => st.per[x.id] && st.per[x.id].inv > 0).map(x => {
+      const q = st.per[x.id];
+      return '<div class="pr"><div class="av">' + esc(x.name.charAt(0).toLocaleUpperCase("tr")) + '</div><div class="grow"><b>' + esc(x.name) + '</b>' +
+        '<div class="small mute">Yatırdı ' + money(q.inv) + ' · Çekim payı ' + money(q.wd) + ' · Oyunda ' + money(q.play) + '</div></div>' +
+        '<b class="' + (q.net >= 0 ? "pos" : "neg") + '">' + signed(q.net) + '</b></div>';
+    }).join("") + (st.inv ? "" : '<div class="empty">Henüz yol açılmadı.</div>') + '</div></div>';
+    if (S.cycles.length > 1) h += '<div class="card"><b>Tüm dönemler</b><div style="margin-top:6px">' +
+      line("Yatırılan", money(all.inv)) + line("Çekilen", money(all.wd)) + line("Oyunda", money(all.play)) + line("Net", signed(all.net), all.net >= 0 ? "pos" : "neg") + '</div></div>';
+    h += '<button class="btn" style="width:100%;margin-bottom:8px" data-a="wa">WhatsApp özeti</button><button class="btn ghost" style="width:100%;margin-bottom:12px" data-a="copysum">Kişi bazında özeti kopyala</button>';
+    h += '<div class="card"><b>Dönemler</b><div style="margin-top:4px">' + S.cycles.slice().reverse().map(cc => {
+      const i = S.cycles.indexOf(cc) + 1, s = stats([cc]);
+      return '<div class="pr"><div class="grow"><b>Dönem ' + i + (cc === c ? " (şu an)" : "") + '</b><div class="small mute">' + fmtD(cc.start) + ' · ' + cc.paths.length + '/' + cc.length + ' yol · Yatırılan ' + money(s.inv) + ' · Çekilen ' + money(s.wd) + '</div></div>' +
+        '<b class="' + (s.net >= 0 ? "pos" : "neg") + '">' + signed(s.net) + '</b></div>';
+    }).join("") + '</div></div>';
+    h += '<button class="btn ghost" style="width:100%" data-a="cyclebox">Yeni dönem başlat</button>';
+  }
+  h += '<button class="fab" data-a="openbox"' + (full ? " disabled" : "") + '>+ Yol aç</button>';
+  h += '<nav class="nav">' + navBtn("aktif", "Yollar", ICO.road, act.length) + navBtn("kapanan", "Biten", ICO.done, done.length) + navBtn("ozet", "Özet", ICO.sum, null) + '</nav>';
+  document.getElementById("app").innerHTML = h;
+  setCloud(cState);
+}
+
+/* bulut esitleme (Firebase Realtime Database, REST + SSE) */
+const DB = "https://yoltakip-75284-default-rtdb.europe-west1.firebasedatabase.app";
+const CK = "yol-takip-cloud", DK = "yol-takip-dirty", IK = "yol-takip-dev";
+let cloud = null; try { cloud = JSON.parse(localStorage.getItem(CK)); } catch(e) {}
+if (!cloud || !/^[a-z0-9]{8,40}$/.test(cloud.code || "")) cloud = null;
+let devId = ""; try { devId = localStorage.getItem(IK) || ""; } catch(e) {}
+if (!devId) { devId = Math.random().toString(36).slice(2, 10) + Date.now().toString(36); try { localStorage.setItem(IK, devId); } catch(e) {} }
+let dirty = false; try { dirty = localStorage.getItem(DK) === "1"; } catch(e) {}
+let cState = cloud ? "sync" : "off", es = null, pushTimer = null, pushing = false, retryTimer = null, pendingJoin = null, pendingHash = null;
+const cUrl = code => DB + "/gruplar/" + code + ".json";
+const setDirty = v => { dirty = v; try { localStorage.setItem(DK, v ? "1" : "0"); } catch(e) {} };
+const persistLocal = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} };
+const CTXT = {off: "", sync: "Eşitleniyor…", ok: "Bulut açık · eşit", offline: "Çevrimdışı · bağlanınca eşitlenecek"};
+function setCloud(st){
+  cState = st;
+  const el = document.getElementById("cs"); if (!el) return;
+  el.className = "cs " + st; el.textContent = CTXT[st] || "";
+}
+function save(){
+  S.updated = Math.max(Date.now(), (S.updated || 0) + 1);
+  persistLocal();
+  if (cloud) { setDirty(true); setCloud("sync"); clearTimeout(pushTimer); pushTimer = setTimeout(doPush, 300); }
+}
+async function doPush(){
+  if (!cloud || pushing) return;
+  pushing = true; clearTimeout(retryTimer);
+  const u = S.updated, body = JSON.stringify({u, by: devId, d: JSON.stringify(S)});
+  try {
+    const r = await fetch(cUrl(cloud.code), {method: "PUT", body});
+    if (!r.ok) throw new Error("http");
+    if (S.updated !== u) { pushing = false; return doPush(); }
+    setDirty(false); setCloud("ok");
+  } catch(e) { setCloud("offline"); retryTimer = setTimeout(doPush, 15000); }
+  pushing = false;
+}
+function adopt(remote){
+  const d = JSON.parse(remote.d);
+  if (!d || !d.cycles || !d.cycles.length || !d.rules) throw new Error("bad");
+  S = d; S.updated = remote.u; migrate(); undo = [];
+  persistLocal();
+  if (winPath || cashPath) closeSheet();
+  render();
+}
+function onRemote(remote){
+  if (!remote || typeof remote.d !== "string" || remote.by === devId || dirty || remote.u === S.updated) return;
+  try { adopt(remote); toast("Veriler güncellendi."); } catch(e) {}
+}
+async function pull(){
+  if (!cloud) return;
+  try {
+    const r = await fetch(cUrl(cloud.code)); if (!r.ok) throw new Error("http");
+    const remote = await r.json();
+    if (remote === null || dirty) { clearTimeout(pushTimer); doPush(); }
+    else { onRemote(remote); setCloud("ok"); }
+  } catch(e) { setCloud("offline"); }
+}
+function listen(){
+  if (es) { es.close(); es = null; }
+  if (!cloud || typeof EventSource === "undefined") return;
+  es = new EventSource(cUrl(cloud.code));
+  es.addEventListener("put", ev => { try { const m = JSON.parse(ev.data); if (m && m.path === "/") { if (m.data) onRemote(m.data); } else pull(); } catch(e) {} });
+  es.addEventListener("patch", () => pull());
+  es.onopen = () => { if (!dirty) setCloud("ok"); };
+  es.onerror = () => { if (!dirty) setCloud("offline"); };
+}
+function genCode(){
+  const a = "abcdefghjkmnpqrstuvwxyz23456789", b = new Uint8Array(14);
+  crypto.getRandomValues(b);
+  return Array.from(b, x => a[x % a.length]).join("");
+}
+function saveCloudCfg(){ try { localStorage.setItem(CK, JSON.stringify(cloud)); } catch(e) {} }
+async function cloudCreate(){
+  const code = genCode(); setSp("Grup oluşturuluyor…");
+  S.updated = Math.max(Date.now(), (S.updated || 0) + 1); persistLocal();
+  try {
+    const r = await fetch(cUrl(code), {method: "PUT", body: JSON.stringify({u: S.updated, by: devId, d: JSON.stringify(S)})});
+    if (!r.ok) throw new Error("http");
+  } catch(e) { setSp("Bağlanılamadı. İnternetini ve Firebase kurallarının yayınlandığını kontrol et."); return; }
+  cloud = {code}; saveCloudCfg(); setDirty(false); setCloud("ok"); listen(); openSettings();
+}
+async function cloudJoin(raw){
+  let t = String(raw || "").trim().toLowerCase();
+  const m = t.match(/k=([a-z0-9]+)/); if (m) t = m[1];
+  const code = t.replace(/[^a-z0-9]/g, "");
+  if (!/^[a-z0-9]{8,40}$/.test(code)) { setSp("Grup kodu geçersiz görünüyor."); return; }
+  let remote;
+  try { const r = await fetch(cUrl(code)); if (!r.ok) throw new Error("http"); remote = await r.json(); }
+  catch(e) { setSp("Bağlanılamadı. İnternetini kontrol edip tekrar dene."); return; }
+  if (!remote || typeof remote.d !== "string") { setSp("Bu kodla kayıtlı veri bulunamadı. Kodu kontrol et."); return; }
+  if (S.cycles.some(c => c.paths.length)) {
+    pendingJoin = {code, remote};
+    showSheet('<h2>Gruba bağlan</h2><p class="mute">Bu telefondaki kayıtlar silinecek ve gruptaki veri yüklenecek. Telefondaki veriyi korumak istiyorsan önce vazgeç ve Ayarlar’dan yedek metnini kopyala.</p>' +
+      '<div class="two"><button class="btn ghost" data-a="close">Vazgeç</button><button class="btn" data-a="cjoinok">Bağlan</button></div>');
+  } else finishJoin(code, remote);
+}
+function finishJoin(code, remote){
+  try { adopt(remote); } catch(e) { closeSheet(); toast("Gruptaki veri okunamadı."); return; }
+  cloud = {code}; saveCloudCfg(); setDirty(false); setCloud("ok"); listen(); closeSheet(); toast("Gruba bağlandı.");
+}
+function cloudLeave(){
+  if (es) es.close(); es = null; cloud = null;
+  try { localStorage.removeItem(CK); } catch(e) {}
+  setDirty(false); setCloud("off"); openSettings(); toast("Bağlantı kesildi. Veriler bu telefonda kalır.");
+}
+const inviteLink = () => location.href.split("#")[0] + "#k=" + cloud.code;
+function copyText(t, msg){
+  try { navigator.clipboard.writeText(t).then(() => toast(msg), () => setSp("Kopyalanamadı: " + t)); }
+  catch(e) { setSp("Kopyalanamadı: " + t); }
+}
+function cloudBlock(){
+  if (cloud) return '<label>Bulut eşitleme</label><div class="prev"><b>Açık.</b> Grup kodu:<br><b style="font-size:17px;letter-spacing:.06em;user-select:all">' + cloud.code + '</b></div>' +
+    '<div class="two" style="margin-top:8px"><button class="btn ghost" data-a="ccopy">Kodu kopyala</button><button class="btn ghost" data-a="clink">Davet linki</button></div>' +
+    '<button class="btn ghost" style="width:100%;margin-top:8px" data-a="cleave">Bağlantıyı kes</button>';
+  return '<label>Bulut eşitleme (herkes aynı veriyi görsün)</label><button class="btn" style="width:100%" data-a="cnew">Yeni grup başlat</button>' +
+    '<div class="mute small" style="margin:10px 0 4px">Ya da arkadaşının verdiği kodla bağlan:</div>' +
+    '<div style="display:flex;gap:8px"><input id="jc" type="text" placeholder="grup kodu" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"><button class="btn ghost" style="flex:none" data-a="cjoin">Bağlan</button></div>';
+}
+function cloudInit(){
+  const m = location.hash.match(/k=([a-z0-9]{8,40})/i);
+  if (m && !cloud) {
+    pendingHash = m[1].toLowerCase();
+    try { history.replaceState(null, "", location.href.split("#")[0]); } catch(e) {}
+    showSheet('<h2>Gruba bağlan</h2><p class="mute">Bu bağlantı bir bulut grubuna ait. Bağlanınca veriler bu grupla eşitlenir.</p>' +
+      '<div class="two"><button class="btn ghost" data-a="close">Şimdi değil</button><button class="btn" data-a="chashok">Bağlan</button></div>');
+  }
+  if (cloud) { pull(); listen(); }
+  window.addEventListener("online", () => { if (cloud) { if (dirty) doPush(); else pull(); listen(); } });
+  document.addEventListener("visibilitychange", () => { if (cloud && document.visibilityState === "visible") { if (dirty) doPush(); else pull(); } });
+}
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-a]"); if (!b) return;
+  const a = b.dataset.a, id = Number(b.dataset.id);
+  if (a === "open") openPath();
+  else if (a === "openbox") openPathSheet();
+  else if (a === "split") openSplit();
+  else if (a === "splitok") doSplit();
+  else if (a === "dellast") delLast(id);
+  else if (a === "delpath") openDelPath(id);
+  else if (a === "confirmdel") delPath(id);
+  else if (a === "win") openWin(id);
+  else if (a === "lose") lose(id);
+  else if (a === "cash") openCash(id);
+  else if (a === "cashall") { document.getElementById("wc").value = fmtIn(cashPath.balance); cashPrev(); }
+  else if (a === "savecash") saveCash();
+  else if (a === "undo") doUndo();
+  else if (a === "tab") { tab = b.dataset.t; render(); }
+  else if (a === "close") closeSheet();
+  else if (a === "savewin") saveWin();
+  else if (a === "settings") openSettings();
+  else if (a === "savesettings") saveSettings();
+  else if (a === "addpartner") addPartner();
+  else if (a === "copy") doCopy();
+  else if (a === "import") doImport();
+  else if (a === "copysum") copySummary();
+  else if (a === "wa") openWa();
+  else if (a === "copywa") copyWa();
+  else if (a === "cnew") cloudCreate();
+  else if (a === "cjoin") cloudJoin(document.getElementById("jc").value);
+  else if (a === "cjoinok") finishJoin(pendingJoin.code, pendingJoin.remote);
+  else if (a === "chashok") cloudJoin(pendingHash);
+  else if (a === "cleave") cloudLeave();
+  else if (a === "ccopy") copyText(cloud.code, "Kod kopyalandı.");
+  else if (a === "clink") copyText(inviteLink(), "Davet linki kopyalandı.");
+  else if (a === "cyclebox") openCycleConfirm();
+  else if (a === "newcycle") startCycle();
+});
+document.getElementById("sheet").addEventListener("click", e => { if (e.target.id === "sheet") closeSheet(); });
+render();
+cloudInit();
+</script>
+<script>
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+}
+</script>
+</body>
+</html>
